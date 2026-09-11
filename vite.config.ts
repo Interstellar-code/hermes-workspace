@@ -246,6 +246,14 @@ const config = defineConfig(({ mode, command }) => {
         'e2e/**',
         '**/*.skip.test.ts',
       ],
+      // Same escape hatch the build uses (package.json `build`). Without it
+      // every vitest worker that imports gateway-capabilities starts a real
+      // gateway probe + plugin-sync heartbeat: live I/O, timers that outlive
+      // the environment, and an unhandled rejection that flips the exit code
+      // on an otherwise-passing suite. Tests that want the probe set it back.
+      env: {
+        HERMES_SKIP_GATEWAY_BOOT: '1',
+      },
       // Force vitest to run React through its own transform pipeline so ESM
       // `import` and CJS `require('react')` share a single module instance.
       // Without this, react-dom sets the dispatcher on its CJS React copy while
@@ -434,8 +442,11 @@ const config = defineConfig(({ mode, command }) => {
             httpServer.timeout = 0
           }
 
-          // Auto-start hermes-agent when dev server launches
-          if (command === 'serve') {
+          // Auto-start hermes-agent when dev server launches.
+          // Vitest also runs as `command === 'serve'`, so without the VITEST
+          // guard a test run probes the gateway and — on a machine with none
+          // running, i.e. CI — spawns a real hermes-agent process.
+          if (command === 'serve' && !process.env.VITEST) {
             void startClaudeAgent()
           }
 

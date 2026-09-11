@@ -1351,8 +1351,18 @@ export function isClaudeConnected(): boolean {
 // it hangs, hardest in CI where no gateway is reachable. Runtime (`pnpm start`,
 // dev) leaves the flag unset and boots these normally.
 if (!process.env.HERMES_SKIP_GATEWAY_BOOT) {
-  void ensureGatewayProbed()
-  void import('./hermes-plugin-sync').then(({ ensureHermesPluginSync }) => {
-    ensureHermesPluginSync()
+  void ensureGatewayProbed().catch((err) => {
+    console.error('[gateway] boot probe failed:', err)
   })
+  void import('./hermes-plugin-sync')
+    .then(({ ensureHermesPluginSync }) => {
+      ensureHermesPluginSync()
+    })
+    .catch((err) => {
+      // Includes the TDZ ReferenceError from the gateway-capabilities ⇄
+      // hermes-plugin-sync import cycle (#354). Logged, not swallowed —
+      // without this it surfaces as an unhandled rejection attributed to
+      // whatever module happened to be evaluating nearby.
+      console.error('[gateway] plugin-sync boot failed:', err)
+    })
 }
